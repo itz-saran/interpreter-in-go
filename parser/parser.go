@@ -57,6 +57,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.INT, p.parseIntegerLiteral)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+	p.registerPrefix(token.TRUE, p.parseBoolean)
+	p.registerPrefix(token.FALSE, p.parseBoolean)
 
 	p.infixParseFns = make(map[string]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -90,6 +92,28 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	return lit
 }
 
+func (p *Parser) parseExpression(precedence int) ast.Expression {
+	prefix := p.prefixParseFns[string(p.curToken.Type)]
+
+	if prefix == nil {
+		p.noPrefixParseFnError(p.curToken.Type)
+		return nil
+	}
+
+	leftExp := prefix()
+
+	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		infinix := p.infixParseFns[string(p.peekToken.Type)]
+		if infinix == nil {
+			return leftExp
+		}
+		p.nextToken()
+		leftExp = infinix(leftExp)
+	}
+
+	return leftExp
+}
+
 func (p *Parser) parsePrefixExpression() ast.Expression {
 	expression := &ast.PrefixExpression{
 		Token:    p.curToken,
@@ -112,6 +136,13 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	expression.Right = p.parseExpression(precedence)
 
 	return expression
+}
+
+func (p *Parser) parseBoolean() ast.Expression {
+	return &ast.Boolean{
+		Token: p.curToken,
+		Value: p.curTokenIs(token.TRUE),
+	}
 }
 
 func (p *Parser) Errors() []string {
@@ -196,28 +227,6 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	}
 
 	return stmt
-}
-
-func (p *Parser) parseExpression(precedence int) ast.Expression {
-	prefix := p.prefixParseFns[string(p.curToken.Type)]
-
-	if prefix == nil {
-		p.noPrefixParseFnError(p.curToken.Type)
-		return nil
-	}
-
-	leftExp := prefix()
-
-	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
-		infinix := p.infixParseFns[string(p.peekToken.Type)]
-		if infinix == nil {
-			return leftExp
-		}
-		p.nextToken()
-		leftExp = infinix(leftExp)
-	}
-
-	return leftExp
 }
 
 func (p *Parser) curTokenIs(t token.TokenType) bool {
