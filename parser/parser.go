@@ -59,6 +59,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.TRUE, p.parseBoolean)
 	p.registerPrefix(token.FALSE, p.parseBoolean)
+	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
+	p.registerPrefix(token.IF, p.parseIfExpression)
 
 	p.infixParseFns = make(map[string]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -145,6 +147,74 @@ func (p *Parser) parseBoolean() ast.Expression {
 	}
 }
 
+func (p *Parser) parseGroupedExpression() ast.Expression {
+	p.nextToken()
+
+	exp := p.parseExpression(LOWEST)
+
+	if !p.advanceIfPeekMatches(token.RPAREN) {
+		return nil
+	}
+
+	return exp
+}
+
+func (p *Parser) parseIfExpression() ast.Expression {
+	expression := &ast.IfExpression{
+		Token: p.curToken,
+	}
+
+	if !p.advanceIfPeekMatches(token.LPAREN) {
+		return nil
+	}
+
+	p.nextToken()
+	expression.Condition = p.parseExpression(LOWEST)
+
+	if !p.advanceIfPeekMatches(token.RPAREN) {
+		return nil
+	}
+
+	if !p.advanceIfPeekMatches(token.LBRACE) {
+		return nil
+	}
+
+	expression.Consequence = p.parseBlockStatement()
+
+	if p.peekTokenIs(token.ELSE) {
+		p.nextToken()
+
+		if !p.advanceIfPeekMatches(token.LBRACE) {
+			return nil
+		}
+
+		expression.Alternative = p.parseBlockStatement()
+	}
+
+	return expression
+}
+
+func (p *Parser) parseBlockStatement() *ast.BlockStatement {
+	block := &ast.BlockStatement{
+		Token: p.curToken,
+	}
+	block.Statements = []ast.Statement{}
+
+	p.nextToken()
+
+	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		stmt := p.parseStatement()
+
+		if stmt != nil {
+			block.Statements = append(block.Statements, stmt)
+		}
+
+		p.nextToken()
+	}
+
+	return block
+}
+
 func (p *Parser) Errors() []string {
 	return p.errors
 }
@@ -188,13 +258,13 @@ func (p *Parser) parseStatement() ast.Statement {
 func (p *Parser) parseLetStatement() *ast.LetStatement {
 	stmt := &ast.LetStatement{Token: p.curToken}
 
-	if !p.checkAndPeek(token.IDENT) {
+	if !p.advanceIfPeekMatches(token.IDENT) {
 		return nil
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
-	if !p.checkAndPeek(token.ASSIGN) {
+	if !p.advanceIfPeekMatches(token.ASSIGN) {
 		return nil
 	}
 
@@ -241,7 +311,7 @@ func (p *Parser) peekTokenIs(t token.TokenType) bool {
 // the correctness of the order of tokens by checking the type of the next token. Our expectPeek
 // here checks the type of the peekToken and only if the type is correct does it advance the tokens
 // by calling nextToken.
-func (p *Parser) checkAndPeek(t token.TokenType) bool {
+func (p *Parser) advanceIfPeekMatches(t token.TokenType) bool {
 	if p.peekTokenIs(t) {
 		p.nextToken()
 		return true
