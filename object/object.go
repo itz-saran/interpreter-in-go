@@ -35,7 +35,7 @@ func (b *Boolean) Inspect() string {
 	return fmt.Sprintf("%t", b.Value)
 }
 
-func (b *Boolean) Type() string {
+func (b *Boolean) Type() ObjectType {
 	return BOOLEANOBJ
 }
 
