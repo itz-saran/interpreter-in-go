@@ -1,6 +1,8 @@
 package object
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type ObjectType string
 
@@ -45,6 +47,6 @@ func (n *Null) Inspect() string {
 	return "null"
 }
 
-func (n *Null) Type() string {
+func (n *Null) Type() ObjectType {
 	return NULLOBJ
 }
