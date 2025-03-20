@@ -1,6 +1,7 @@
 package evaluator
 
 import (
+	"fmt"
 	"testing"
 
 	"example.com/lexer"
@@ -121,5 +122,64 @@ func TestBangOperator(t *testing.T) {
 	for _, tt := range tests {
 		evaluated := testEval(tt.input)
 		testBooleanObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestIfElseExpression(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected any
+	}{
+		{"if(true) { 10 }", 10},
+		{"if(false) { 10 }", nil},
+		{"if(1) { 10 }", 10},
+		{"if(1 < 2) { 10 }", 10},
+		{"if(1 > 2) { 10 }", nil},
+		{"if(1 < 2) { 10 } else { 20 }", 10},
+		{"if(1 > 2) { 10 } else { 20 }", 20},
+	}
+
+	for _, tt := range tests {
+		evalutated := testEval(tt.input)
+		integer, ok := tt.expected.(int)
+		fmt.Println("eval value", evalutated)
+		if ok {
+			testIntegerObject(t, evalutated, int64(integer))
+		} else {
+			testNullObject(t, evalutated)
+		}
+	}
+}
+
+func testNullObject(t *testing.T, obj object.Object) bool {
+	if obj != NULL {
+		t.Errorf("Object is not null. got=%T (%+v)", obj, obj)
+		return false
+	}
+	return true
+}
+
+func TestReturnStatements(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64
+	}{
+		{"return 10;", 10},
+		{"return 10; 9;", 10},
+		{"return 5 * 2; 9;", 10},
+		{"9; return 5 * 2; 9;", 10},
+		{`
+			if (10 > 1) {
+				if (10 > 1) {
+					return 10;
+				}
+				return 1;
+			}
+		`, 10},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testIntegerObject(t, evaluated, tt.expected)
 	}
 }
