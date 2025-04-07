@@ -18,6 +18,7 @@ const (
 	PRODUCT     // *
 	PREFIX      // -X or +X
 	CALL        // myFunction(x)
+	INDEX       // array[index]
 )
 
 type (
@@ -45,6 +46,7 @@ var precedences = map[token.TokenType]int{
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
 	token.LPAREN:   CALL,
+	token.LBRACKET: INDEX,
 }
 
 func New(l *lexer.Lexer) *Parser {
@@ -76,6 +78,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -110,12 +113,12 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	leftExp := prefix()
 
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
-		infinix := p.infixParseFns[string(p.peekToken.Type)]
-		if infinix == nil {
+		infix := p.infixParseFns[string(p.peekToken.Type)]
+		if infix == nil {
 			return leftExp
 		}
 		p.nextToken()
-		leftExp = infinix(leftExp)
+		leftExp = infix(leftExp)
 	}
 
 	return leftExp
@@ -305,6 +308,19 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 	array.Elements = p.parseExpressionList(token.RBRACKET)
 
 	return array
+}
+
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+
+	exp.Index = p.parseExpression(LOWEST)
+	if !p.advanceIfPeekMatches(token.RBRACKET) {
+		return nil
+	}
+
+	return exp
 }
 
 func (p *Parser) Errors() []string {
